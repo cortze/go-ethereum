@@ -17,6 +17,7 @@
 package ethtest
 
 import (
+	"crypto/ecdsa"
 	"fmt"
 	"net"
 	"reflect"
@@ -54,7 +55,7 @@ func (s *Suite) dial() (*Conn, error) {
 	conn := Conn{Conn: rlpx.NewConn(fd, s.Dest.Pubkey())}
 	// do encHandshake
 	conn.ourKey, _ = crypto.GenerateKey()
-	_, err = conn.Handshake(conn.ourKey)
+	_, err = conn.Conn.Handshake(conn.ourKey)
 	if err != nil {
 		conn.Close()
 		return nil, err
@@ -90,6 +91,63 @@ func (c *Conn) peer(chain *Chain, status *Status) error {
 		return fmt.Errorf("status exchange failed: %v", err)
 	}
 	return nil
+}
+
+type HandshakeDetails struct {
+	Capabilities []p2p.Cap
+	SoftwareInfo uint64
+	ClientName   string
+	Error        error
+}
+
+func (c *Conn) DetailedHandshake(priv *ecdsa.PrivateKey, caps []p2p.Cap, hProto uint) HandshakeDetails {
+	c.ourKey = priv
+	c.ourHighestProtoVersion = hProto
+	c.caps = caps
+	// handshake details
+	details := HandshakeDetails{}
+	// write hello to client
+	pub0 := crypto.FromECDSAPub(&c.ourKey.PublicKey)[1:]
+	ourHandshake := &Hello{
+		Version: 5,
+		Caps:    c.caps,
+		ID:      pub0,
+	}
+	defer c.SetDeadline(time.Time{})
+	c.SetDeadline(time.Now().Add(10 * time.Second))
+	if err := c.Write(ourHandshake); err != nil {
+		details.Error = fmt.Errorf("write to connection failed: %v", err)
+		return details
+	}
+	// read hello from client
+	msg := c.Read()
+	fmt.Println(msg)
+	switch msg.Code() {
+	case 0x00: // Hello
+		hmsg := msg.(*Hello)
+		// set snappy if version is at least 5
+		if hmsg.Version >= 5 {
+			c.SetSnappy(true)
+		}
+		details.Capabilities = hmsg.Caps
+		details.SoftwareInfo = hmsg.Version
+		details.ClientName = hmsg.Name
+		fmt.Println(hmsg)
+		c.negotiateEthProtocol(hmsg.Caps)
+		if c.negotiatedProtoVersion == 0 {
+			details.Error = fmt.Errorf("could not negotiate eth protocol (remote caps: %v, local eth version: %v)", hmsg.Caps, c.ourHighestProtoVersion)
+			return details
+		}
+		// If we require snap, verify that it was negotiated
+		if c.ourHighestSnapProtoVersion != c.negotiatedSnapProtoVersion {
+			details.Error = fmt.Errorf("could not negotiate snap protocol (remote caps: %v, local snap version: %v)", hmsg.Caps, c.ourHighestSnapProtoVersion)
+			return details
+		}
+		return details
+	default:
+		details.Error = fmt.Errorf("bad handshake: %#v", msg)
+		return details
+	}
 }
 
 // handshake performs a protocol handshake with the node.

@@ -119,7 +119,7 @@ geth --datadir <datadir> --nodiscover --nat=none --networkid 19763 --verbosity 5
 
 Then, run the following command, replacing `<enode>` with the enode of the geth node:
  ```
- devp2p rlpx eth-test <enode> cmd/devp2p/internal/ethtest/testdata/chain.rlp cmd/devp2p/internal/ethtest/testdata/genesis.json
+ devp2p rlpx eth-test <enode> cmd/devp2p/tooling/ethtest/testdata/chain.rlp cmd/devp2p/tooling/ethtest/testdata/genesis.json
 ```
 
 Repeat the above process (re-initialising the node) in order to run the Eth Protocol test suite again.
@@ -131,7 +131,7 @@ To run the eth66 protocol test suite, initialize a geth node as described above 
 replacing `<enode>` with the enode of the geth node:
 
  ```
- devp2p rlpx eth66-test <enode> cmd/devp2p/internal/ethtest/testdata/chain.rlp cmd/devp2p/internal/ethtest/testdata/genesis.json
+ devp2p rlpx eth66-test <enode> cmd/devp2p/tooling/ethtest/testdata/chain.rlp cmd/devp2p/tooling/ethtest/testdata/genesis.json
 ```
 
 [eth]: https://github.com/ethereum/devp2p/blob/master/caps/eth.md
