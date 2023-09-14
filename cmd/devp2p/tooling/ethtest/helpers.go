@@ -34,6 +34,16 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/rlpx"
 )
 
+type HandshakeError string
+
+const (
+	ErrorNone                    HandshakeError = "None"
+	ErrorWriteToConnection       HandshakeError = "write to connection failed"
+	ErrorEthProtocolNegotiation  HandshakeError = "eth protocols negotiation"
+	ErrorSnapProtocolNegotiation HandshakeError = "snap protocol negotiation"
+	ErrorBadHandshake            HandshakeError = "bad handshake"
+)
+
 var (
 	pretty = spew.ConfigState{
 		Indent:                  "  ",
@@ -97,10 +107,10 @@ type HandshakeDetails struct {
 	Capabilities []p2p.Cap
 	SoftwareInfo uint64
 	ClientName   string
-	Error        error
+	Error        HandshakeError
 }
 
-func (c *Conn) DetailedHandshake(priv *ecdsa.PrivateKey, caps []p2p.Cap, hProto uint) HandshakeDetails {
+func (c *Conn) DetailedHandshake(priv *ecdsa.PrivateKey, caps []p2p.Cap, hProto uint) (HandshakeDetails, error) {
 	c.ourKey = priv
 	c.ourHighestProtoVersion = hProto
 	c.caps = caps
@@ -116,8 +126,8 @@ func (c *Conn) DetailedHandshake(priv *ecdsa.PrivateKey, caps []p2p.Cap, hProto 
 	defer c.SetDeadline(time.Time{})
 	c.SetDeadline(time.Now().Add(10 * time.Second))
 	if err := c.Write(ourHandshake); err != nil {
-		details.Error = fmt.Errorf("write to connection failed: %v", err)
-		return details
+		details.Error = ErrorWriteToConnection
+		return details, fmt.Errorf("%s - %v", ErrorWriteToConnection, err)
 	}
 	// read hello from client
 	msg := c.Read()
@@ -132,21 +142,22 @@ func (c *Conn) DetailedHandshake(priv *ecdsa.PrivateKey, caps []p2p.Cap, hProto 
 		details.Capabilities = hmsg.Caps
 		details.SoftwareInfo = hmsg.Version
 		details.ClientName = hmsg.Name
+		details.Error = ErrorNone
 		fmt.Println(hmsg)
 		c.negotiateEthProtocol(hmsg.Caps)
 		if c.negotiatedProtoVersion == 0 {
-			details.Error = fmt.Errorf("could not negotiate eth protocol (remote caps: %v, local eth version: %v)", hmsg.Caps, c.ourHighestProtoVersion)
-			return details
+			details.Error = ErrorEthProtocolNegotiation
+			return details, fmt.Errorf("%s (remote caps: %v, local eth version: %v)", ErrorEthProtocolNegotiation, hmsg.Caps, c.ourHighestProtoVersion)
 		}
 		// If we require snap, verify that it was negotiated
 		if c.ourHighestSnapProtoVersion != c.negotiatedSnapProtoVersion {
-			details.Error = fmt.Errorf("could not negotiate snap protocol (remote caps: %v, local snap version: %v)", hmsg.Caps, c.ourHighestSnapProtoVersion)
-			return details
+			details.Error = ErrorSnapProtocolNegotiation
+			return details, fmt.Errorf("%s (remote caps: %v, local snap version: %v)", ErrorSnapProtocolNegotiation, hmsg.Caps, c.ourHighestSnapProtoVersion)
 		}
-		return details
+		return details, nil
 	default:
-		details.Error = fmt.Errorf("bad handshake: %#v", msg)
-		return details
+		details.Error = ErrorBadHandshake
+		return details, fmt.Errorf("%s: %#v", ErrorBadHandshake, msg)
 	}
 }
 
