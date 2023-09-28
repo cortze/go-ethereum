@@ -34,14 +34,12 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/rlpx"
 )
 
-type HandshakeError string
-
-const (
-	ErrorNone                    HandshakeError = "None"
-	ErrorWriteToConnection       HandshakeError = "write to connection failed"
-	ErrorEthProtocolNegotiation  HandshakeError = "eth protocols negotiation"
-	ErrorSnapProtocolNegotiation HandshakeError = "snap protocol negotiation"
-	ErrorBadHandshake            HandshakeError = "bad handshake"
+var (
+	ErrorNone                    = fmt.Errorf("None")
+	ErrorWriteToConnection       = fmt.Errorf("write to connection failed")
+	ErrorEthProtocolNegotiation  = fmt.Errorf("eth protocols negotiation")
+	ErrorSnapProtocolNegotiation = fmt.Errorf("snap protocol negotiation")
+	ErrorBadHandshake            = fmt.Errorf("bad handshake")
 )
 
 var (
@@ -107,7 +105,7 @@ type HandshakeDetails struct {
 	Capabilities []p2p.Cap
 	SoftwareInfo uint64
 	ClientName   string
-	Error        HandshakeError
+	Error        error
 }
 
 func (c *Conn) DetailedHandshake(priv *ecdsa.PrivateKey, caps []p2p.Cap, hProto uint) (HandshakeDetails, error) {
@@ -131,7 +129,6 @@ func (c *Conn) DetailedHandshake(priv *ecdsa.PrivateKey, caps []p2p.Cap, hProto 
 	}
 	// read hello from client
 	msg := c.Read()
-	fmt.Println(msg)
 	switch msg.Code() {
 	case 0x00: // Hello
 		hmsg := msg.(*Hello)
@@ -143,7 +140,6 @@ func (c *Conn) DetailedHandshake(priv *ecdsa.PrivateKey, caps []p2p.Cap, hProto 
 		details.SoftwareInfo = hmsg.Version
 		details.ClientName = hmsg.Name
 		details.Error = ErrorNone
-		fmt.Println(hmsg)
 		c.negotiateEthProtocol(hmsg.Caps)
 		if c.negotiatedProtoVersion == 0 {
 			details.Error = ErrorEthProtocolNegotiation
