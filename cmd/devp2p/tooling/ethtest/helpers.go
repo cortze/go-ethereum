@@ -102,10 +102,12 @@ func (c *Conn) peer(chain *Chain, status *Status) error {
 }
 
 type HandshakeDetails struct {
-	Capabilities []p2p.Cap
-	SoftwareInfo uint64
-	ClientName   string
-	Error        error
+	Capabilities               []p2p.Cap
+	NegotiatedProtoVersion     uint
+	NegotiatedSnapProtoVersion uint
+	SoftwareInfo               uint64
+	ClientName                 string
+	Error                      error
 }
 
 func (c *Conn) DetailedHandshake(priv *ecdsa.PrivateKey, caps []p2p.Cap, hProto uint) (HandshakeDetails, error) {
@@ -136,11 +138,15 @@ func (c *Conn) DetailedHandshake(priv *ecdsa.PrivateKey, caps []p2p.Cap, hProto 
 		if hmsg.Version >= 5 {
 			c.SetSnappy(true)
 		}
+		// track the details of the handshake
 		details.Capabilities = hmsg.Caps
 		details.SoftwareInfo = hmsg.Version
 		details.ClientName = hmsg.Name
 		details.Error = ErrorNone
+
 		c.negotiateEthProtocol(hmsg.Caps)
+		details.NegotiatedProtoVersion = c.negotiatedProtoVersion
+		details.NegotiatedSnapProtoVersion = c.negotiatedSnapProtoVersion
 		if c.negotiatedProtoVersion == 0 {
 			details.Error = ErrorEthProtocolNegotiation
 			return details, fmt.Errorf("%s (remote caps: %v, local eth version: %v)", ErrorEthProtocolNegotiation, hmsg.Caps, c.ourHighestProtoVersion)
