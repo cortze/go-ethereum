@@ -60,6 +60,48 @@ const (
 	seedMaxAge        = 5 * 24 * time.Hour
 )
 
+type TableConfig struct {
+	Alpha           int
+	BucketSize      int
+	MaxReplacements int
+
+	HashBits          int
+	Nbuckets          int
+	BucketMinDistance int
+	BucketIPLimit     int
+	BucketSubnet      int
+	TableIPLimit      int
+	TableSubnet       int
+
+	CopyNodesInterval time.Duration
+	SeedMinTableTime  time.Duration
+	SeedCount         int
+	SeedMaxAge        time.Duration
+}
+
+var DefaultTableConfig = TableConfig{
+	Alpha:           alpha,           // Kademlia concurrency factor
+	BucketSize:      bucketSize,      // Kademlia bucket size
+	MaxReplacements: maxReplacements, // Size of per-bucket replacement list
+
+	// We keep buckets for the upper 1/15 of distances because
+	// it's very unlikely we'll ever encounter a node that's closer.
+	HashBits:          hashBits,
+	Nbuckets:          hashBits / 15,       // Number of buckets
+	BucketMinDistance: hashBits - nBuckets, // Log distance of closest bucket
+
+	// IP address limits.
+	BucketIPLimit: bucketIPLimit,
+	BucketSubnet:  bucketSubnet, // at most 2 addresses from the same /24
+	TableIPLimit:  tableIPLimit,
+	TableSubnet:   tableSubnet,
+
+	CopyNodesInterval: copyNodesInterval,
+	SeedMinTableTime:  seedMinTableTime,
+	SeedCount:         seedCount,
+	SeedMaxAge:        seedMaxAge,
+}
+
 // Table is the 'node table', a Kademlia-like index of neighbor nodes. The table keeps
 // itself up-to-date by verifying the liveness of neighbors and requesting their node
 // records when announcements of a new record version are received.
